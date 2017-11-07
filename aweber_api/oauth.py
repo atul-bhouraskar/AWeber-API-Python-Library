@@ -76,7 +76,8 @@ class OAuthAdapter(object):
             error_type = error.get('type')
             error_msg = error.get('message')
             raise APIException('{0}: {1}'.format(error_type, error_msg))
-
+        if isinstance(content, six.binary_type):
+            content = content.decode('utf-8')
         if response == 'body' and isinstance(content, six.string_types):
             return self._parse(content)
         if response == 'status':
