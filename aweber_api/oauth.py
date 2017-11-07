@@ -1,10 +1,9 @@
 import json
-import os
 
 import oauth2 as oauth
 import six
-
 from aweber_api.base import APIException
+from requests_oauthlib import OAuth1Session
 
 try:
     from urllib import urlencode
@@ -13,14 +12,19 @@ except ImportError:
 
 
 class OAuthAdapter(object):
-
     def __init__(self, key, secret, base):
         self.key = key
         self.secret = secret
-        self.consumer = oauth.Consumer(key=self.key, secret=self.secret)
         self.api_base = base
+        self.consumer = oauth.Consumer(key=self.key, secret=self.secret)
+        self.oauth_config = dict(
+            client_key=self.key, client_secret=self.secret,
+            resource_owner_key=None, resource_owner_secret=None, verifier=None
+        )
+        self.oauth_client = OAuth1Session
 
-    def _parse(self, response):
+    @staticmethod
+    def _parse(response):
         try:
             data = json.loads(response)
             if not data or data == '':
@@ -30,26 +34,34 @@ class OAuthAdapter(object):
             pass
         return response
 
-    def request(self, method, url, data={}, response='body'):
-        client = self._get_client()
-        url = self._expand_url(url)
-        body = self._prepare_request_body(method, url, data)
+    def get_request_token(self, url, data=None):
+        body = self._prepare_request_body('POST', data)
+        return self.oauth_client(**self.oauth_config).fetch_request_token(url, data=body)
 
-        content_type = 'application/json'
+    def get_access_token(self, url, data=None):
+        self.oauth_config.update(
+            resource_owner_key=self.user.request_token,
+            resource_owner_secret=self.user.token_secret,
+            verifier=data['oauth_verifier'])
+        return self.oauth_client(**self.oauth_config).fetch_access_token(url)
+
+    def request(self, method, url, data=None, response='body'):
+        url = self._expand_url(url)
+        body = self._prepare_request_body(method, data or dict())
+
         if method == 'GET' and body is not None and body is not '':
             if '?' in url:
                 url = '{0}&{1}'.format(url, body)
             else:
                 url = '{0}?{1}'.format(url, body)
 
-        if method == 'POST':
-            content_type = 'application/x-www-form-urlencoded'
-        headers = {'Content-Type': content_type}
+        resp = self.oauth_client(
+            client_key=self.key, client_secret=self.secret,
+            resource_owner_key=self.user.access_token,
+            resource_owner_secret=self.user.token_secret).get(url)
 
-        resp, content = client.request(
-            url, method, body=body, headers=headers)
-
-        if int(resp['status']) >= 400:
+        content = resp.content
+        if int(resp.status_code) >= 400:
             """
             API Service Errors:
 
@@ -63,17 +75,14 @@ class OAuthAdapter(object):
             error = content.get('error', {})
             error_type = error.get('type')
             error_msg = error.get('message')
-            raise APIException(
-                '{0}: {1}'.format(error_type, error_msg))
+            raise APIException('{0}: {1}'.format(error_type, error_msg))
 
-        if isinstance(content, six.binary_type):
-            content = content.decode('utf-8')
         if response == 'body' and isinstance(content, six.string_types):
             return self._parse(content)
         if response == 'status':
-            return resp['status']
+            return resp.status_code
         if response == 'headers':
-            return resp
+            return resp.headers
         return None
 
     def _expand_url(self, url):
@@ -88,10 +97,10 @@ class OAuthAdapter(object):
             client = oauth.Client(self.consumer, token=token)
         else:
             client = oauth.Client(self.consumer)
-
         return client
 
-    def _prepare_request_body(self, method, url, data):
+    @staticmethod
+    def _prepare_request_body(method, data):
         if method not in ['POST', 'GET', 'PATCH'] or len(data.keys()) == 0:
             return ''
         if method in ['POST', 'GET']:

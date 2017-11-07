@@ -92,12 +92,10 @@ class AWeberAPI(AWeberBase):
 
         """
         data = {'oauth_callback': callback_url}
-        response = self.adapter.request(
-            'POST', REQUEST_TOKEN_URL, data)
+        response = self.adapter.get_request_token(REQUEST_TOKEN_URL, data)
         self.user.request_token, self.user.token_secret = (
             self._parse_token_response(response))
-
-        return (self.user.request_token, self.user.token_secret)
+        return self.user.request_token, self.user.token_secret
 
     def get_access_token(self):
         """Exchange request tokens for Access tokens.
@@ -112,19 +110,21 @@ class AWeberAPI(AWeberBase):
 
         """
         data = {'oauth_verifier': self.user.verifier}
-        response = self.adapter.request(
-            'POST', ACCESS_TOKEN_URL, data)
+        response = self.adapter.get_access_token(ACCESS_TOKEN_URL, data)
         self.user.access_token, self.user.token_secret = (
             self._parse_token_response(response))
 
-        return (self.user.access_token, self.user.token_secret)
+        return self.user.access_token, self.user.token_secret
 
-    def _parse_token_response(self, response):
+    @staticmethod
+    def _parse_token_response(response):
         """Parses token response.
 
         Return the token key and the token secret
 
         """
+        if isinstance(response, dict):
+            return response['oauth_token'], response['oauth_token_secret']
         if not isinstance(response, str):
             raise TypeError('Expected response to be a string')
 
@@ -134,7 +134,7 @@ class AWeberAPI(AWeberBase):
                 data.get('oauth_token_secret') is None):
             raise ValueError('OAuth parameters not returned')
 
-        return (data['oauth_token'][0], data['oauth_token_secret'][0])
+        return data['oauth_token'][0], data['oauth_token_secret'][0]
 
     def get_account(self, access_token=False, token_secret=False):
         """Returns the AWeberEntry object for the account.
