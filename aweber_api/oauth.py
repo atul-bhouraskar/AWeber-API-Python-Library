@@ -1,6 +1,7 @@
 import json
 
 import oauth2 as oauth
+import os
 import six
 from aweber_api.base import APIException
 from requests_oauthlib import OAuth1Session
@@ -45,6 +46,13 @@ class OAuthAdapter(object):
             verifier=data['oauth_verifier'])
         return self.oauth_client(**self.oauth_config).fetch_access_token(url)
 
+    @staticmethod
+    def get_proxies():
+        return {
+            'http': os.environ['HTTP_PROXY'],
+            'https': os.environ['HTTPS_PROXY'],
+        }
+
     def request(self, method, url, data=None, response='body'):
         url = self._expand_url(url)
         body = self._prepare_request_body(method, data or dict())
@@ -55,10 +63,11 @@ class OAuthAdapter(object):
             else:
                 url = '{0}?{1}'.format(url, body)
 
-        resp = self.oauth_client(
+        client = self.oauth_client(
             client_key=self.key, client_secret=self.secret,
             resource_owner_key=self.user.access_token,
-            resource_owner_secret=self.user.token_secret).get(url)
+            resource_owner_secret=self.user.token_secret)
+        resp = client.get(url, proxies=self.get_proxies())
 
         content = resp.content
         if int(resp.status_code) >= 400:
