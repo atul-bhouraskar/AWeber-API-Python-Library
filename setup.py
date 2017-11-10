@@ -30,6 +30,7 @@ setup(
     install_requires=[
         'httplib2>=0.9.0,<=0.10.0',
         'oauth2>=1.2',
+        'requests_oauthlib',
     ],
     tests_require=[
         'mock',
