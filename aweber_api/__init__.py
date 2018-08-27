@@ -1,3 +1,5 @@
+import six
+
 from aweber_api.base import (
     ACCESS_TOKEN_URL,
     APIException,
@@ -125,7 +127,7 @@ class AWeberAPI(AWeberBase):
         Return the token key and the token secret
 
         """
-        if not isinstance(response, str):
+        if not isinstance(response, six.string_types):
             raise TypeError('Expected response to be a string')
 
         data = parse_qs(response)
