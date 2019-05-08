@@ -47,7 +47,7 @@ class OAuthAdapter(object):
         headers = {'Content-Type': content_type}
 
         resp, content = client.request(
-            url, method, body=body, headers=headers)
+            url, method, body=body.encode('utf-8'), headers=headers)
 
         if int(resp['status']) >= 400:
             """
@@ -99,9 +99,6 @@ class OAuthAdapter(object):
             for key in data:
                 if type(data[key]) in [dict, list]:
                     data[key] = json.dumps(data[key])
-                # unicode strings must be encoded (for py2)
-                if type(data[key]) == six.text_type:
-                    data[key] = data[key].encode('utf-8')
             return urlencode(data)
         if method == 'PATCH':
             return json.dumps(data)
